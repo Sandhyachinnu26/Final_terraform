@@ -2,6 +2,57 @@ provider "aws" {
   region = "us-east-1"  # Change as needed
 }
 
+resource "aws_instance" "sonarqube" {
+  ami           = "ami-04b4f1a9cf54c11d0"  # Replace with a valid Ubuntu AMI ID
+  instance_type = "t2.medium"     
+  #key_name      = "your-key"      
+
+  security_groups = [aws_security_group.sonarqube_sg.name]
+
+  user_data = <<-EOF
+    #!/bin/bash
+    sudo apt update -y
+    sudo apt upgrade -y
+
+    # Install Docker
+    sudo apt install -y docker.io
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    sudo usermod -aG docker ubuntu
+
+    # Pull and run SonarQube container
+    sudo docker run -d --name sonarqube -p 9000:9000 sonarqube
+  EOF
+
+  tags = {
+    Name = "SonarQube-Server"
+  }
+}
+
+resource "aws_security_group" "sonarqube_sg" {
+  name        = "sonarqube-security-group"
+  description = "Allow inbound access to SonarQube"
+
+  ingress {
+    from_port   = 9000
+    to_port     = 9000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # Restrict in production
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+
+
+
+
 # VPC
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
