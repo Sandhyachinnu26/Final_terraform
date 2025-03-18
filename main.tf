@@ -3,13 +3,13 @@ provider "aws" {
 }
 
 
- /*# S3 Bucket for Terraform State Storage
+ # S3 Bucket for Terraform State Storage
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "batch1terraformbatch1"  # Replace with a globally unique name
 
- /* lifecycle {
+  lifecycle {
     prevent_destroy = true  # Prevent accidental deletion
-  }*/
+  }
 
   versioning {
     enabled = true  # Enable versioning to retain state history
@@ -65,7 +65,7 @@ terraform {
     encrypt        = true
   }
 } 
-*/
+
 
 resource "aws_instance" "sonarqube" {
   ami           = "ami-04b4f1a9cf54c11d0"  # Replace with a valid Ubuntu AMI ID
