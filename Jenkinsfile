@@ -1,47 +1,61 @@
-pipeline {
-    agent any
+# Provider
+provider "aws" {
+  region = "us-east-1"
+}
 
-    environment {
-        AWS_DEFAULT_REGION = 'us-east-1'
+# Create S3 bucket for state storage
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "batch26terraformbatch26"
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  versioning {
+    enabled = true
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
     }
+  }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
+  tags = {
+    Name = "Terraform State Bucket"
+  }
+}
 
-        stage('Terraform Init') {
-            steps {
-                sh 'terraform init'
-            }
-        }
+# S3 Public Access Block
+resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
+  bucket                  = aws_s3_bucket.terraform_state.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
 
-        stage('Terraform Apply') {
-            steps {
-                sh 'terraform apply -auto-approve'
-            }
-        }
+# DynamoDB for locking
+resource "aws_dynamodb_table" "terraform_lock" {
+  name         = "terraform-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
 
-        stage('Wait for S3 Propagation') {
-            steps {
-                echo "Waiting for S3 propagation..."
-                sleep 30  // Ensure S3 bucket is available before reconfigure
-            }
-        }
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
 
-        stage('Terraform Reconfigure Backend') {
-            steps {
-                sh 'terraform init -reconfigure'
-            }
-        }
-    }
+  tags = {
+    Name = "Terraform Lock Table"
+  }
+}
 
-    post {
-        always {
-            echo "Cleaning up resources"
-            sh 'terraform destroy -auto-approve'
-        }
-    }
+# Null resource to wait for S3 propagation
+resource "null_resource" "wait_for_s3" {
+  provisioner "local-exec" {
+    command = "sleep 60"  # Wait for S3 to propagate
+  }
+  depends_on = [aws_s3_bucket.terraform_state]
 }
