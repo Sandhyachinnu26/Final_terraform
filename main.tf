@@ -5,7 +5,7 @@ provider "aws" {
 
  # Fetch existing S3 bucket if it exists
 data "aws_s3_bucket" "existing_bucket" {
-  bucket = "batch1terraformbatch1"
+  bucket = "batch1terraformbatch12"
 }
 
 resource "aws_s3_bucket" "terraform_state" {
@@ -63,7 +63,7 @@ resource "aws_dynamodb_table" "terraform_lock" {
 
 terraform {
   backend "s3" {
-    bucket         = "batch1terraformbatch1"
+    bucket         = "batch1terraformbatch12"
     key            = "terraform/statefile.tfstate"
     region         = "us-east-1"
     dynamodb_table = "terraform-lock"
