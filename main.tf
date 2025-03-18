@@ -54,7 +54,7 @@ resource "null_resource" "wait_for_s3" {
   depends_on = [aws_s3_bucket.terraform_state]
 
   provisioner "local-exec" {
-    command = "sleep 30"   # Delay for 30 seconds
+    command = "sleep 60"   # Delay for 30 seconds
   }
 }
 
