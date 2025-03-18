@@ -1,68 +1,46 @@
 pipeline {
-
-    parameters {
-        booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
-    } 
-    
-    environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-
-    }
-
     agent any
+
+    environment {
+        AWS_DEFAULT_REGION = 'us-east-1'
+    }
 
     stages {
         stage('Checkout') {
             steps {
-                script {
-                    dir("terraform") {
-                        git branch: 'main', url: "https://github.com/Sandhyachinnu26/Final_terraform.git"
-                    }
-                }
+                checkout scm
             }
         }
 
-       stage('Plan') {
-    steps {
-        withEnv([
-            "AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}",
-            "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"
-        ]) {
-            dir("terraform") {
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform init'
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                sh 'terraform apply -auto-approve'
+            }
+        }
+
+        stage('Wait for S3 Propagation') {
+            steps {
+                echo "Waiting for S3 propagation..."
+                sleep 30  // Wait for 30 seconds to ensure S3 bucket is fully available
+            }
+        }
+
+        stage('Terraform Reconfigure Backend') {
+            steps {
                 sh 'terraform init -reconfigure'
-                sh 'terraform plan -var-file=terraform.tfvars -out=tfplan'
-                sh 'terraform show -no-color tfplan > tfplan.txt'
             }
         }
     }
-}
 
-        /* stage('Approval') {
-            when {
-                not { equals expected: true, actual: params.autoApprove }
-            }
-            steps {
-                script {
-                    def plan = readFile 'terraform/tfplan.txt'
-                    input message: "Do you want to apply the plan?",
-                    parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
-                }
-            }
-        } */
-
-        stage('Apply') {
-            steps {
-                withEnv([
-                    "AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID}",
-                    "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"
-                    
-                ]) {
-                    dir("terraform") {
-                        sh 'terraform apply -input=false tfplan'
-                    }
-                }
-            }
+    post {
+        always {
+            sh 'terraform destroy -auto-approve'
         }
     }
 }
