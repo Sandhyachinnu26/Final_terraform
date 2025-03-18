@@ -3,16 +3,21 @@ provider "aws" {
 }
 
 
- # S3 Bucket for Terraform State Storage
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = "batch1terraformbatch1"  # Replace with a globally unique name
+provider "aws" {
+  region = "us-east-1"
+}
 
-/*  lifecycle {
-    prevent_destroy = true  # Prevent accidental deletion
-  } */
+# Fetch existing S3 bucket if it exists
+data "aws_s3_bucket" "existing_bucket" {
+  bucket = "batch1terraformbatch1"
+}
+
+resource "aws_s3_bucket" "terraform_state" {
+  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
+  bucket = "batch1terraformbatch1"
 
   versioning {
-    enabled = true  # Enable versioning to retain state history
+    enabled = true
   }
 
   server_side_encryption_configuration {
@@ -28,9 +33,9 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
-# Block Public Access to S3 Bucket
 resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
-  bucket = aws_s3_bucket.terraform_state.id
+  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
+  bucket = coalesce(data.aws_s3_bucket.existing_bucket.id, aws_s3_bucket.terraform_state[0].id)
 
   block_public_acls       = true
   block_public_policy     = true
@@ -38,9 +43,14 @@ resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
   restrict_public_buckets = true
 }
 
-# DynamoDB Table for State Locking
+# Fetch existing DynamoDB table if it exists
+data "aws_dynamodb_table" "existing_dynamodb" {
+  name = "terraform-lock"
+}
+
 resource "aws_dynamodb_table" "terraform_lock" {
-  name         = "terraform-lock"
+  count = length(data.aws_dynamodb_table.existing_dynamodb.id) > 0 ? 0 : 1
+  name  = "terraform-lock"
   billing_mode = "PAY_PER_REQUEST"
   
   hash_key = "LockID"
@@ -55,16 +65,13 @@ resource "aws_dynamodb_table" "terraform_lock" {
   }
 }
 
-# Terraform Backend Configuration
-
 terraform {
   backend "s3" {
- bucket         = "batch1terraformbatch1"  # Match the S3 bucket name above
-    key            = "terraform/statefile.tfstate"  # Path in S3
+    bucket         = "batch1terraformbatch1"
+    key            = "terraform/statefile.tfstate"
     region         = "us-east-1"
     dynamodb_table = "terraform-lock"
-    encrypt        = true
-
+    encrypt        = true
   }
 }
 
