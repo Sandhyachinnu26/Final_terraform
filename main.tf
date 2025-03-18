@@ -7,9 +7,9 @@ provider "aws" {
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "batch1terraformbatch1"  # Replace with a globally unique name
 
-  lifecycle {
+ /* lifecycle {
     prevent_destroy = true  # Prevent accidental deletion
-  }
+  }*/
 
   versioning {
     enabled = true  # Enable versioning to retain state history
