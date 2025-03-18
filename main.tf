@@ -2,9 +2,6 @@ provider "aws" {
   region = "us-east-1"  # Change as needed
 }
 
-provider "aws" {
-  region = "us-east-1"
-}
 
 # S3 Bucket for Terraform State Storage
 resource "aws_s3_bucket" "terraform_state" {
