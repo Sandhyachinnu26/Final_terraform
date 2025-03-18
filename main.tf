@@ -2,6 +2,71 @@ provider "aws" {
   region = "us-east-1"  # Change as needed
 }
 
+
+# S3 Bucket for Terraform State Storage
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "batch1terraformbatch1"  # Replace with a globally unique name
+
+  lifecycle {
+    prevent_destroy = true  # Prevent accidental deletion
+  }
+
+  versioning {
+    enabled = true  # Enable versioning to retain state history
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+
+  tags = {
+    Name = "Terraform State Bucket"
+  }
+}
+
+# Block Public Access to S3 Bucket
+resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# DynamoDB Table for State Locking
+resource "aws_dynamodb_table" "terraform_lock" {
+  name         = "terraform-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  
+  hash_key = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "Terraform Lock Table"
+  }
+}
+
+# Terraform Backend Configuration
+terraform {
+  backend "s3" {
+    bucket         = "batch1terraformbatch1"  # Match the S3 bucket name above
+    key            = "terraform/statefile.tfstate"  # Path in S3
+    region         = "us-east-1"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
+}
+
+
 resource "aws_instance" "sonarqube" {
   ami           = "ami-04b4f1a9cf54c11d0"  # Replace with a valid Ubuntu AMI ID
   instance_type = "t2.medium"     
