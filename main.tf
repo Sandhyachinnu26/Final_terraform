@@ -6,37 +6,59 @@ provider "aws" {
 # Create S3 bucket for state storage
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "batch26terraformbatch26"
+
   lifecycle {
     prevent_destroy = false
   }
 
-  versioning {
-    enabled = true
-  }
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
-      }
-    }
-  }
-
   tags = {
-    Name = "Terraform State Bucket"
+    Name        = "TerraformStateBucket"
+    Environment = "Dev"
   }
 }
 
-# S3 Public Access Block
-resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
-  bucket                  = aws_s3_bucket.terraform_state.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+# Enable public access to the S3 bucket
+resource "aws_s3_bucket_acl" "bucket_acl" {
+  bucket = aws_s3_bucket.terraform_state.id
+  acl    = "public-read"
 }
 
-# DynamoDB for locking
+# Attach public access policy to the S3 bucket
+resource "aws_s3_bucket_policy" "public_access" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.terraform_state.arn}/*"
+      }
+    ]
+  })
+}
+
+# Add versioning to the S3 bucket
+resource "aws_s3_bucket_versioning" "versioning" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Delay to ensure S3 bucket is available before backend initialization
+resource "null_resource" "wait_for_s3" {
+  depends_on = [aws_s3_bucket.terraform_state]
+
+  provisioner "local-exec" {
+    command = "sleep 30"   # Delay for 30 seconds
+  }
+}
+
+# DynamoDB table for state locking
 resource "aws_dynamodb_table" "terraform_lock" {
   name         = "terraform-lock"
   billing_mode = "PAY_PER_REQUEST"
@@ -48,16 +70,9 @@ resource "aws_dynamodb_table" "terraform_lock" {
   }
 
   tags = {
-    Name = "Terraform Lock Table"
+    Name        = "DynamoDBLockTable"
+    Environment = "Dev"
   }
-}
-
-# Null resource to wait for S3 propagation
-resource "null_resource" "wait_for_s3" {
-  provisioner "local-exec" {
-    command = "sleep 60"  # Wait for S3 to propagate
-  }
-  depends_on = [aws_s3_bucket.terraform_state]
 }
 
 # =========================
