@@ -1,31 +1,78 @@
+
 provider "aws" {
   region = "us-east-1"  # Change as needed
 }
 
-# Create S3 bucket for storing Terraform state
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = "batch26terraformbatch26"
-  force_destroy = true
 
-  lifecycle {
-    prevent_destroy = false
+ # Fetch existing S3 bucket if it exists
+data "aws_s3_bucket" "existing_bucket" {
+  bucket = "batch67terraformbatch67"
+}
+
+resource "aws_s3_bucket" "terraform_state" {
+  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
+  bucket = "batch67terraformbatch67"
+
+  versioning {
+    enabled = true
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
   }
 
   tags = {
-    Name        = "TerraformStateBucket"
-    Environment = "Dev"
+    Name = "Terraform State Bucket"
   }
 }
 
-# Enable versioning for the S3 bucket
-resource "aws_s3_bucket_versioning" "versioning" {
-  bucket = aws_s3_bucket.terraform_state.id
-  versioning_configuration {
-    status = "Enabled"
+resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
+  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
+  bucket = coalesce(data.aws_s3_bucket.existing_bucket.id, aws_s3_bucket.terraform_state[0].id)
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Fetch existing DynamoDB table if it exists
+data "aws_dynamodb_table" "existing_dynamodb" {
+  name = "terraform-lock"
+}
+
+resource "aws_dynamodb_table" "terraform_lock" {
+  count = length(data.aws_dynamodb_table.existing_dynamodb.id) > 0 ? 0 : 1
+  name  = "terraform-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  
+  hash_key = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "Terraform Lock Table"
   }
 }
 
- 
+terraform {
+  backend "s3" {
+    bucket         = "batch67terraformbatch67"
+    key            = "terraform/statefile.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
+ } 
+
+
 resource "aws_instance" "sonarqube" {
   ami           = "ami-04b4f1a9cf54c11d0"  # Replace with a valid Ubuntu AMI ID
   instance_type = "t2.medium"     
