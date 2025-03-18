@@ -1,4 +1,4 @@
-# Create S3 bucket for storing Terraform state
+/* # Create S3 bucket for storing Terraform state
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "batch26terraformbatch26"
   force_destroy = true
@@ -54,4 +54,4 @@ resource "null_resource" "backend_init" {
     aws_s3_bucket.terraform_state,
     aws_dynamodb_table.terraform_locks
   ]
-}
+} */
