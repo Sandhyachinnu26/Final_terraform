@@ -9,7 +9,7 @@ provider "aws" {
 
 # Create S3 Bucket for State Storage
 resource "aws_s3_bucket" "terraform_state" {
-  bucket        = "batch1terraformbatch12"
+  bucket        = "batch0terraformbatch12"
   force_destroy = true  # Allow bucket deletion during destroy
 
   versioning {
@@ -64,7 +64,7 @@ resource "aws_dynamodb_table" "terraform_lock" {
 
 terraform {
   backend "s3" {
-    bucket         = "batch1terraformbatch12"   # S3 bucket name
+    bucket         = "batch0terraformbatch12"   # S3 bucket name
     key            = "terraform/statefile.tfstate"  # State file path
     region         = "us-east-1"
     dynamodb_table = "terraform-lock"  # DynamoDB for locking
