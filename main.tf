@@ -1,13 +1,129 @@
-# AWS Provider
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-1"  # Change as needed
+}
+
+
+ # Fetch existing S3 bucket if it exists
+data "aws_s3_bucket" "existing_bucket" {
+  bucket = "batch1terraformbatch12"
+}
+
+resource "aws_s3_bucket" "terraform_state" {
+  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
+  bucket = "batch1terraformbatch1"
+
+  versioning {
+    enabled = true
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+
+  tags = {
+    Name = "Terraform State Bucket"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
+  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
+  bucket = coalesce(data.aws_s3_bucket.existing_bucket.id, aws_s3_bucket.terraform_state[0].id)
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Fetch existing DynamoDB table if it exists
+data "aws_dynamodb_table" "existing_dynamodb" {
+  name = "terraform-lock"
+}
+
+resource "aws_dynamodb_table" "terraform_lock" {
+  count = length(data.aws_dynamodb_table.existing_dynamodb.id) > 0 ? 0 : 1
+  name  = "terraform-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  
+  hash_key = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "Terraform Lock Table"
+  }
+}
+
+terraform {
+  backend "s3" {
+    bucket         = "batch1terraformbatch12"
+    key            = "terraform/statefile.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
+ } 
+
+
+resource "aws_instance" "sonarqube" {
+  ami           = "ami-04b4f1a9cf54c11d0"  # Replace with a valid Ubuntu AMI ID
+  instance_type = "t2.medium"     
+  #key_name      = "your-key"      
+
+  security_groups = [aws_security_group.sonarqube_sg.name]
+
+  user_data = <<-EOF
+    #!/bin/bash
+    sudo apt update -y
+    sudo apt upgrade -y
+
+    # Install Docker
+    sudo apt install -y docker.io
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    sudo usermod -aG docker ubuntu
+
+    # Pull and run SonarQube container
+    sudo docker run -d --name sonarqube -p 9000:9000 sonarqube
+  EOF
+
+  tags = {
+    Name = "SonarQube-Server"
+  }
+}
+
+resource "aws_security_group" "sonarqube_sg" {
+  name        = "sonarqube-security-group"
+  description = "Allow inbound access to SonarQube"
+
+  ingress {
+    from_port   = 9000
+    to_port     = 9000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # Restrict in production
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 
 
-# =========================
-# ✅ VPC Configuration
-# =========================
+
+
+
+# VPC
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 
@@ -16,9 +132,7 @@ resource "aws_vpc" "main" {
   }
 }
 
-# =========================
-# ✅ Public Subnets
-# =========================
+# Public Subnets
 resource "aws_subnet" "public" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
@@ -128,9 +242,9 @@ EOF
 # Auto Scaling Group (ASG)
 resource "aws_autoscaling_group" "app_asg" {
   desired_capacity     = 1
-  min_size             = 1
-  max_size             = 3
-  vpc_zone_identifier  = aws_subnet.public[*].id  # Attach ASG to public subnets
+  min_size            = 1
+  max_size            = 3
+  vpc_zone_identifier = aws_subnet.public[*].id  # Attach ASG to public subnets
 
   launch_template {
     id      = aws_launch_template.app_template.id
@@ -144,7 +258,7 @@ resource "aws_lb" "app_lb" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.app_sg.id]
-  subnets            = aws_subnet.public[*].id  # Attach ALB to public subnets
+  subnets           = aws_subnet.public[*].id  # Attach ALB to public subnets
 }
 
 # Target Group
@@ -173,11 +287,13 @@ resource "aws_autoscaling_attachment" "asg_attachment" {
   lb_target_group_arn    = aws_lb_target_group.app_tg.arn
 }
 
+
 # Create Two Standalone EC2 Instances
 resource "aws_instance" "web_instance_1" {
   ami             = var.ami_id
   instance_type   = "t2.micro"
   subnet_id       = aws_subnet.public[0].id
+  #key_name        = var.key_name
   security_groups = [aws_security_group.app_sg.id]
 
   tags = {
@@ -189,6 +305,7 @@ resource "aws_instance" "web_instance_2" {
   ami             = var.ami_id
   instance_type   = "t2.micro"
   subnet_id       = aws_subnet.public[1].id
+  #key_name        = var.key_name
   security_groups = [aws_security_group.app_sg.id]
 
   tags = {
