@@ -3,10 +3,6 @@ provider "aws" {
 }
 
 
-provider "aws" {
-  region = "us-east-1"
-}
-
 # Fetch existing S3 bucket if it exists
 data "aws_s3_bucket" "existing_bucket" {
   bucket = "batch1terraformbatch1"
