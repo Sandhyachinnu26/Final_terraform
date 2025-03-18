@@ -17,7 +17,7 @@ pipeline {
             steps {
                 script {
                     dir("terraform") {
-                        git branch: 'main', url: "https://github.com/Rakesh-k-ops/Final_terra.git"
+                        git branch: 'main', url: "https://github.com/Sandhyachinnu26/Final_terraform.git"
                     }
                 }
             }
