@@ -2,6 +2,28 @@ provider "aws" {
   region = "us-east-1"  # Change as needed
 }
 
+# Create S3 bucket for storing Terraform state
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "batch26terraformbatch26"
+  force_destroy = true
+
+  lifecycle {
+    prevent_destroy = false
+  }
+
+  tags = {
+    Name        = "TerraformStateBucket"
+    Environment = "Dev"
+  }
+}
+
+# Enable versioning for the S3 bucket
+resource "aws_s3_bucket_versioning" "versioning" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
 
  
 resource "aws_instance" "sonarqube" {
