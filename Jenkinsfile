@@ -27,7 +27,7 @@ pipeline {
         stage('Wait for S3 Propagation') {
             steps {
                 echo "Waiting for S3 propagation..."
-                sleep 30  // Wait for 30 seconds to ensure S3 bucket is fully available
+                sleep 30  // Ensure S3 bucket is available before reconfigure
             }
         }
 
@@ -40,6 +40,7 @@ pipeline {
 
     post {
         always {
+            echo "Cleaning up resources"
             sh 'terraform destroy -auto-approve'
         }
     }
