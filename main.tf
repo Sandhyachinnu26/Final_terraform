@@ -1,16 +1,16 @@
+# AWS Provider
 provider "aws" {
-  region = "us-east-1"  # Change as needed
+  region = "us-east-1"
 }
 
+# -----------------------
+# S3 Backend Configuration
+# -----------------------
 
- # Fetch existing S3 bucket if it exists
-data "aws_s3_bucket" "existing_bucket" {
-  bucket = "batch1terraformbatch12"
-}
-
+# Create S3 Bucket for State Storage
 resource "aws_s3_bucket" "terraform_state" {
-  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
-  bucket = "batch1terraformbatch1"
+  bucket        = "batch1terraformbatch12"
+  force_destroy = true  # Allow bucket deletion during destroy
 
   versioning {
     enabled = true
@@ -29,27 +29,24 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
+# Block public access
 resource "aws_s3_bucket_public_access_block" "terraform_state_block" {
-  count  = length(data.aws_s3_bucket.existing_bucket.id) > 0 ? 0 : 1
-  bucket = coalesce(data.aws_s3_bucket.existing_bucket.id, aws_s3_bucket.terraform_state[0].id)
-
+  bucket                  = aws_s3_bucket.terraform_state.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
 
-# Fetch existing DynamoDB table if it exists
-data "aws_dynamodb_table" "existing_dynamodb" {
-  name = "terraform-lock"
-}
+# -----------------------
+# DynamoDB for State Locking
+# -----------------------
 
+# Create DynamoDB Table for Locking
 resource "aws_dynamodb_table" "terraform_lock" {
-  count = length(data.aws_dynamodb_table.existing_dynamodb.id) > 0 ? 0 : 1
-  name  = "terraform-lock"
+  name         = "terraform-lock"
   billing_mode = "PAY_PER_REQUEST"
-  
-  hash_key = "LockID"
+  hash_key     = "LockID"
 
   attribute {
     name = "LockID"
@@ -61,22 +58,27 @@ resource "aws_dynamodb_table" "terraform_lock" {
   }
 }
 
+# -----------------------
+# Backend Configuration
+# -----------------------
+
 terraform {
   backend "s3" {
-    bucket         = "batch1terraformbatch12"
-    key            = "terraform/statefile.tfstate"
+    bucket         = "batch1terraformbatch12"   # S3 bucket name
+    key            = "terraform/statefile.tfstate"  # State file path
     region         = "us-east-1"
-    dynamodb_table = "terraform-lock"
+    dynamodb_table = "terraform-lock"  # DynamoDB for locking
     encrypt        = true
   }
- } 
+}
 
+# -----------------------
+# SonarQube EC2 Instance
+# -----------------------
 
 resource "aws_instance" "sonarqube" {
-  ami           = "ami-04b4f1a9cf54c11d0"  # Replace with a valid Ubuntu AMI ID
+  ami           = "ami-04b4f1a9cf54c11d0"  # Replace with valid AMI
   instance_type = "t2.medium"     
-  #key_name      = "your-key"      
-
   security_groups = [aws_security_group.sonarqube_sg.name]
 
   user_data = <<-EOF
@@ -99,6 +101,7 @@ resource "aws_instance" "sonarqube" {
   }
 }
 
+# Security Group for SonarQube
 resource "aws_security_group" "sonarqube_sg" {
   name        = "sonarqube-security-group"
   description = "Allow inbound access to SonarQube"
@@ -107,7 +110,7 @@ resource "aws_security_group" "sonarqube_sg" {
     from_port   = 9000
     to_port     = 9000
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Restrict in production
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -118,10 +121,9 @@ resource "aws_security_group" "sonarqube_sg" {
   }
 }
 
-
-
-
-
+# -----------------------
+# VPC Configuration
+# -----------------------
 
 # VPC
 resource "aws_vpc" "main" {
@@ -180,7 +182,10 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# -----------------------
 # Security Group
+# -----------------------
+
 resource "aws_security_group" "app_sg" {
   vpc_id      = aws_vpc.main.id
   name        = "app_security_group"
@@ -208,7 +213,10 @@ resource "aws_security_group" "app_sg" {
   }
 }
 
+# -----------------------
 # Launch Template
+# -----------------------
+
 resource "aws_launch_template" "app_template" {
   name_prefix   = "app-template"
   image_id      = var.ami_id  # Replace with your AMI ID
@@ -221,7 +229,6 @@ apt install -y apache2
 systemctl enable apache2
 systemctl start apache2
 
-# Create a sample index.html
 echo "<h1>Welcome to My Web Server</h1>" > /var/www/html/index.html
 EOF
   )
@@ -239,12 +246,15 @@ EOF
   }
 }
 
+# -----------------------
 # Auto Scaling Group (ASG)
+# -----------------------
+
 resource "aws_autoscaling_group" "app_asg" {
   desired_capacity     = 1
   min_size            = 1
   max_size            = 3
-  vpc_zone_identifier = aws_subnet.public[*].id  # Attach ASG to public subnets
+  vpc_zone_identifier = aws_subnet.public[*].id
 
   launch_template {
     id      = aws_launch_template.app_template.id
@@ -252,13 +262,16 @@ resource "aws_autoscaling_group" "app_asg" {
   }
 }
 
+# -----------------------
 # Load Balancer (ALB)
+# -----------------------
+
 resource "aws_lb" "app_lb" {
   name               = "app-load-balancer"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.app_sg.id]
-  subnets           = aws_subnet.public[*].id  # Attach ALB to public subnets
+  subnets           = aws_subnet.public[*].id
 }
 
 # Target Group
@@ -285,30 +298,4 @@ resource "aws_lb_listener" "http_listener" {
 resource "aws_autoscaling_attachment" "asg_attachment" {
   autoscaling_group_name = aws_autoscaling_group.app_asg.id
   lb_target_group_arn    = aws_lb_target_group.app_tg.arn
-}
-
-
-# Create Two Standalone EC2 Instances
-resource "aws_instance" "web_instance_1" {
-  ami             = var.ami_id
-  instance_type   = "t2.micro"
-  subnet_id       = aws_subnet.public[0].id
-  #key_name        = var.key_name
-  security_groups = [aws_security_group.app_sg.id]
-
-  tags = {
-    Name = "jenkins-master"
-  }
-}
-
-resource "aws_instance" "web_instance_2" {
-  ami             = var.ami_id
-  instance_type   = "t2.micro"
-  subnet_id       = aws_subnet.public[1].id
-  #key_name        = var.key_name
-  security_groups = [aws_security_group.app_sg.id]
-
-  tags = {
-    Name = "jenkins-slave"
-  }
 }
