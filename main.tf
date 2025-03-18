@@ -2,51 +2,8 @@ provider "aws" {
   region = "us-east-1"  # Change as needed
 }
 
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = "batch1terraformbatch1"  
-}
 
-# Enable versioning to keep track of state file changes
-resource "aws_s3_bucket_versioning" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# Enable server-side encryption for security
-resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "terraform-lock"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-}
-
-terraform {
-  backend "s3" {
-    bucket         = "batch1terraformbatch1"  # Replace with your bucket name
-    key            = "terraform/state.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-lock"  # Ensure DynamoDB is also created
-    encrypt        = true
-  }
-}
-
-
-/* # Fetch existing S3 bucket if it exists
+ # Fetch existing S3 bucket if it exists
 data "aws_s3_bucket" "existing_bucket" {
   bucket = "batch1terraformbatch1"
 }
@@ -112,7 +69,7 @@ terraform {
     dynamodb_table = "terraform-lock"
     encrypt        = true
   }
- } */
+ } 
 
 
 resource "aws_instance" "sonarqube" {
