@@ -5,7 +5,7 @@ provider "aws" {
 
 # Create S3 bucket if it doesn't exist
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "batch6terraformbatch12"
+  bucket = "batch26terraformbatch26"
 
   lifecycle {
     prevent_destroy = false
@@ -65,7 +65,7 @@ resource "null_resource" "wait_for_s3" {
 # Backend Configuration
 terraform {
   backend "s3" {
-    bucket         = "batch6terraformbatch12"
+    bucket         = "batch26terraformbatch26"
     key            = "terraform/statefile.tfstate"
     region         = "us-east-1"
     encrypt        = true
