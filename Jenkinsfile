@@ -30,7 +30,7 @@ pipeline {
             "AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY}"
         ]) {
             dir("terraform") {
-                sh 'terraform init'
+                sh 'terraform init -reconfigure'
                 sh 'terraform plan -var-file=terraform.tfvars -out=tfplan'
                 sh 'terraform show -no-color tfplan > tfplan.txt'
             }
