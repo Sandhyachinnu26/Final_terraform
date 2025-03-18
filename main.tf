@@ -59,11 +59,12 @@ resource "aws_dynamodb_table" "terraform_lock" {
 
 terraform {
   backend "s3" {
-    bucket      = "batch1terraformbatch1"
-    key         = "terraform/statefile.tfstate"
-    region      = "us-east-1"
-    use_lockfile = true  # Replace dynamodb_table with this
-    encrypt     = true
+ bucket         = "batch1terraformbatch1"  # Match the S3 bucket name above
+    key            = "terraform/statefile.tfstate"  # Path in S3
+    region         = "us-east-1"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+
   }
 }
 
