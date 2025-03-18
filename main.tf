@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 
-# S3 Bucket for Terraform State Storage
+/* # S3 Bucket for Terraform State Storage
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "batch1terraformbatch1"  # Replace with a globally unique name
 
@@ -64,7 +64,7 @@ terraform {
     dynamodb_table = "terraform-lock"
     encrypt        = true
   }
-}
+} */
 
 
 resource "aws_instance" "sonarqube" {
